@@ -77,7 +77,11 @@ For each page, walk through what components it needs:
   - Whether the field is required (mark with `"required": true`) — ask: "Which of these fields should be required?"
   - Optional placeholder text (example hint shown inside the empty field, e.g., `"placeholder": "you@example.com"`)
   - Optional default value (pre-fills the field, e.g., `"default": "To Do"` for a status field)
+  - Optional formula for computed fields (see Formula Fields section below)
 - **List** — If the page displays data, ask which fields/columns to show. Lists can have optional `rowActions` for inline per-row operations (like "Mark Done" or "Start Reading")
+- **Summary** — KPI or metric cards (see Summary Component section below)
+- **Tabs** — Tabbed layout for grouping multiple views (see Tabs Component section below)
+- **Detail** — Read-only display of a single record's fields (see Detail Component section below)
 - **Button** — What it's labeled and what it does (navigate to another page, submit a form, update an existing record, or a combination)
 
 ### Step 5: Data Sources
@@ -145,10 +149,13 @@ Before delivering the spec, verify ALL of the following. Do not present the spec
 - Content array must not be empty
 
 ### Component validation
-- `text`: requires `component: "text"` and `content` (string)
+- `text`: requires `component: "text"` and `content` (string). Supports optional `"format": "markdown"` for rendered markdown.
 - `form`: requires `component: "form"`, `id` (unique string), and `fields` (non-empty array)
 - `list`: requires `component: "list"`, `dataSource` (must reference a key in `dataSources`), and `columns` (non-empty array)
 - `button`: requires `component: "button"`, `label`, and `onClick` (non-empty array of actions)
+- `summary`: requires `component: "summary"`, `label`, and `value` (string, supports aggregate syntax)
+- `tabs`: requires `component: "tabs"` and `tabs` (array of objects, each with `label` and `content` array)
+- `detail`: requires `component: "detail"` and either `dataSource` or `fromForm`, plus `fields` (array of field names)
 
 ### Row action validation
 - Each row action needs `label`, `action` (must be `"update"`), `dataSource` (must match a PUT dataSources key), `matchField` (field used to identify the row), and `values` (object mapping field names to new values)
@@ -160,6 +167,9 @@ Before delivering the spec, verify ALL of the following. Do not present the spec
 - Optional: `"required": true` (boolean, defaults to false)
 - Optional: `"placeholder"` (string, hint text shown in empty fields)
 - Optional: `"default"` (string, pre-fills the field with this value on first display)
+  - Magic defaults for date/datetime fields: `"NOW"` resolves to the current datetime, `"CURRENTDATE"` resolves to today's date
+  - Relative date offsets: `"+7d"` (7 days from now), `"+1m"` (1 month from now)
+- Optional: `"formula"` (string, makes the field computed and read-only — see Formula Fields section)
 
 ### Action validation
 - `navigate` action: requires `action: "navigate"` and `target` (must match a page key)
@@ -167,10 +177,12 @@ Before delivering the spec, verify ALL of the following. Do not present the spec
 - `update` action: requires `action: "update"`, `dataSource` (must match a PUT dataSources key), `target` (must match a form `id`), and `matchField` (the field name used to find the row to update)
 
 ### DataSource validation
-- Every dataSource needs `url` and `method` (`GET`, `POST`, or `PUT`)
+- Every dataSource needs `url` and `method` (`GET`, `POST`, `PUT`, or `DELETE`)
 - For local storage: url must be `local://<tableName>` where tableName is lowercase alphanumeric/underscores
 - Every dataSource referenced by a list component, submit action, or update action must exist
 - If a form submits to a dataSource, there should be a matching GET dataSource for viewing that data (warn user if missing)
+- Optional: `"fields"` (array of field definitions) for explicit table schema — see DataSource Fields section
+- Optional: `"seedData"` (array of objects) for pre-populated rows — see Seed Data section
 
 ### Cross-reference validation
 - `startPage` exists in `pages`
@@ -234,6 +246,240 @@ Choose the right type for each field:
 - A `values` object with the fields to set (e.g., `{ "done": "true" }`)
 
 **Prefer `rowActions` over `update` actions** when the change is a fixed value (like toggling done/undone) and doesn't require user input. Use `update` actions when the user needs to type or choose new values.
+
+## Formula Fields
+
+Formula fields let you add computed values to forms and lists without storing them in the database. They are calculated at render time and update live as the user types.
+
+**Number formulas** use math expressions with `{fieldName}` references:
+```json
+{ "name": "total", "label": "Total", "type": "number", "formula": "{quantity} * {unitPrice}" }
+```
+The expression supports `+`, `-`, `*`, `/`, and parentheses. Field references are replaced with the current value of that field.
+
+**Text formulas** use string interpolation:
+```json
+{ "name": "fullName", "label": "Full Name", "type": "text", "formula": "{firstName} {lastName}" }
+```
+
+Key rules for formula fields:
+- Formula fields are **read-only** — the user cannot edit them. The framework renders them as a display-only field.
+- Formula fields are **not stored in the database**. They are stripped before insert/update operations. They exist only for display.
+- In **list columns**, formulas are evaluated per-row using stored data. To use formula columns in a list, you must define the formula in the dataSource's `fields` array (see DataSource Fields below).
+- When a user changes a value that a formula depends on, the formula result updates immediately.
+
+**When to use formulas:** Use them for totals, derived names, calculated prices, or any value that can be computed from other fields. For example: an expense form with `quantity` and `unitPrice` fields can have a `total` formula field showing `"{quantity} * {unitPrice}"`. This avoids making the user do the math themselves.
+
+## DataSource Fields
+
+DataSources can include an explicit `"fields"` array to define the table schema independently of any form. This is useful when:
+- You want formula columns in a list view (formulas must be defined somewhere — `fields` on the dataSource is the place)
+- The table schema doesn't map one-to-one with any single form
+- You need columns in a list that aren't part of a form
+
+```json
+"dataSources": {
+  "orderReader": {
+    "url": "local://orders",
+    "method": "GET",
+    "fields": [
+      { "name": "item", "label": "Item", "type": "text" },
+      { "name": "quantity", "label": "Qty", "type": "number" },
+      { "name": "unitPrice", "label": "Unit Price", "type": "number" },
+      { "name": "total", "label": "Total", "type": "number", "formula": "{quantity} * {unitPrice}" }
+    ]
+  }
+}
+```
+
+When a list component references this dataSource, the `total` column is computed per-row from the stored `quantity` and `unitPrice` values. The `fields` array uses the same field definition format as form fields.
+
+## Seed Data
+
+DataSources can include `"seedData"` to pre-populate a table with rows on first app load. This is useful for demos, quizzes, reference data, or any app that should start with data already in it.
+
+```json
+"dataSources": {
+  "categoryReader": {
+    "url": "local://categories",
+    "method": "GET",
+    "seedData": [
+      { "name": "Groceries", "icon": "cart" },
+      { "name": "Transport", "icon": "bus" },
+      { "name": "Entertainment", "icon": "movie" }
+    ]
+  }
+}
+```
+
+Key rules:
+- Seed data is inserted into local storage **only on first load** — it does not overwrite data the user has added.
+- Each object in the array represents one row. The keys should match the field names used in forms and lists.
+- Seed data is typically placed on the GET dataSource for the table, but it works on any dataSource pointing to that `local://` URL.
+
+**When to use seedData:** Use it when the app needs starter data to be useful right away. For example, a quiz app with pre-loaded questions, an expense tracker with default categories, or a reading list with suggested books.
+
+## Magic Default Values
+
+In addition to static default values like `"default": "To Do"`, ODS supports special magic defaults for date and datetime fields:
+
+| Magic Default | Field Type | Resolves To |
+|---------------|------------|-------------|
+| `"NOW"` | `datetime` | Current date and time |
+| `"CURRENTDATE"` | `date` | Today's date |
+| `"+7d"` | `date` or `datetime` | 7 days from now |
+| `"+1m"` | `date` or `datetime` | 1 month from now |
+
+Examples:
+```json
+{ "name": "entryDate", "label": "Date", "type": "date", "default": "CURRENTDATE" }
+{ "name": "dueDate", "label": "Due Date", "type": "date", "default": "+7d" }
+{ "name": "createdAt", "label": "Created", "type": "datetime", "default": "NOW" }
+```
+
+**When to use magic defaults:** Use `"CURRENTDATE"` on date fields where the entry date is almost always today (journal entries, expense logs). Use `"+7d"` or `"+1m"` for due dates or reminders. Use `"NOW"` on datetime fields for precise timestamps.
+
+## Summary Component
+
+The summary component displays a KPI or metric card — a single labeled value, optionally with an icon. Use it for dashboard-style pages that show key numbers at a glance.
+
+```json
+{
+  "component": "summary",
+  "label": "Total Expenses",
+  "value": "{SUM(expenseReader, amount)}",
+  "icon": "money"
+}
+```
+
+- `label` (required): The title shown above or beside the value.
+- `value` (required): A string that can be plain text, a number, or an aggregate expression (see Aggregate Expressions below).
+- `icon` (optional): An icon name to display alongside the value.
+
+**When to use summary:** Use summary components at the top of a dashboard or overview page to highlight key metrics. For example: total expenses, number of tasks completed, average rating.
+
+## Tabs Component
+
+The tabs component lets you group multiple views into a tabbed layout. Each tab has its own content array of components, just like a page.
+
+```json
+{
+  "component": "tabs",
+  "tabs": [
+    {
+      "label": "Active",
+      "content": [
+        { "component": "list", "dataSource": "activeTasksReader", "columns": [...] }
+      ]
+    },
+    {
+      "label": "Completed",
+      "content": [
+        { "component": "list", "dataSource": "completedTasksReader", "columns": [...] }
+      ]
+    }
+  ]
+}
+```
+
+- `tabs` (required): An array of tab objects. Each tab has:
+  - `label` (required): The text shown on the tab header.
+  - `content` (required): An array of components displayed when the tab is selected. This works the same as a page's `content` array — you can put text, lists, forms, summaries, or any other component inside a tab.
+
+**When to use tabs:** Use tabs when a page has multiple related views that would be cluttered if shown all at once. For example, a task manager with "Active" and "Completed" tabs, or a dashboard with "Overview", "Details", and "History" tabs.
+
+## Detail Component
+
+The detail component shows a read-only display of field/value pairs from a single record. Think of it as the "view" counterpart to a form — it displays data without letting the user edit it.
+
+```json
+{
+  "component": "detail",
+  "dataSource": "orderReader",
+  "fields": ["orderNumber", "customerName", "total", "status"],
+  "labels": {
+    "orderNumber": "Order #",
+    "customerName": "Customer"
+  }
+}
+```
+
+- `dataSource` (required unless `fromForm` is used): References a GET dataSource to pull the record from.
+- `fromForm` (alternative to `dataSource`): References a form `id` to display the most recently submitted values.
+- `fields` (required): An array of field names to display, in the order you want them shown.
+- `labels` (optional): An object mapping field names to custom display labels. Fields not in this map use their original name as the label.
+
+**When to use detail:** Use the detail component on confirmation pages (showing what the user just submitted), record view pages (displaying a single item's full details), or anywhere you want to present data in a structured, read-only format.
+
+## Markdown Text
+
+Text components support rendered markdown by adding `"format": "markdown"` to the component. This lets you include rich formatting without creating multiple text components.
+
+```json
+{
+  "component": "text",
+  "format": "markdown",
+  "content": "## Getting Started\n\nFollow these steps:\n1. **Add an entry** using the form\n2. **Review** your entries in the list\n3. *Export* when you're done\n\n> Tip: Use the menu to navigate between pages."
+}
+```
+
+Supported markdown features:
+- Headers (`#`, `##`, `###`)
+- Bold (`**text**`) and italic (`*text*`)
+- Ordered and unordered lists
+- Code blocks (inline and fenced)
+- Tables
+- Blockquotes (`>`)
+- Links
+
+**When to use markdown:** Use markdown text when you need formatted instructions, help content, or informational sections that go beyond plain text. It is especially useful for onboarding pages, help pages, or any page with structured instructions.
+
+## Aggregate Expressions
+
+Text and summary components can include aggregate expressions that compute values from a dataSource. These are evaluated at render time from the stored data.
+
+**Syntax:** `{FUNCTION(dataSourceKey, fieldName)}`
+
+**Supported functions:**
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `SUM` | Total of all values | `{SUM(expenseReader, amount)}` |
+| `COUNT` | Number of rows | `{COUNT(taskReader, id)}` |
+| `AVG` | Average of all values | `{AVG(feedbackReader, rating)}` |
+| `MIN` | Minimum value | `{MIN(expenseReader, amount)}` |
+| `MAX` | Maximum value | `{MAX(expenseReader, amount)}` |
+| `PCT` | Percentage of matching rows | `{PCT(taskReader, status=Done)}` |
+
+**Filtered form:** You can filter which rows are included by adding `field=value`:
+```
+{COUNT(taskReader, status=Done)}
+```
+This counts only the rows where `status` equals `"Done"`.
+
+**Embedding in text:** Aggregate expressions can be embedded in regular text content:
+```json
+{
+  "component": "text",
+  "content": "You have completed {COUNT(taskReader, status=Done)} out of {COUNT(taskReader, id)} tasks."
+}
+```
+
+**When to use aggregates:** Use them in summary components for KPI cards, or in text components for dynamic status messages. They are ideal for dashboard pages where the user wants to see totals, counts, or averages at a glance.
+
+## Data Export / Off-Ramp
+
+ODS apps include a built-in data export feature so users are never locked into the framework. The app drawer has an "OFF-RAMP" section that lets users export their data at any time.
+
+**Export formats:**
+
+| Format | What it produces |
+|--------|-----------------|
+| JSON | A `.json` file with all rows from each table |
+| CSV | A single `.csv` file for one table, or a `.zip` containing multiple `.csv` files for multi-table apps |
+| SQL | A `.sql` file with `CREATE TABLE` and `INSERT` statements, ready to import into any SQL database |
+
+You do not need to configure anything in the spec for data export — it is built into the framework automatically for every app that uses `local://` data sources. However, it is worth mentioning to users: "Your data is never locked in — you can export it as JSON, CSV, or SQL anytime from the app's menu."
 
 ## Reference Example
 
@@ -369,7 +615,7 @@ Here is a complete, valid example — a Customer Feedback app with help and tour
 
 ## Important Boundaries
 
-- Only generate specs that conform to the ODS schema. Do not invent new component types or properties.
+- Only generate specs that conform to the ODS schema. Valid component types are: `page`, `text`, `form`, `list`, `button`, `summary`, `tabs`, and `detail`. Do not invent new component types or properties.
 - If the user asks for something beyond the spec's capabilities (e.g., image uploads, authentication, conditional logic), acknowledge it kindly and explain it's not yet supported. Suggest the simplest alternative that works within the spec.
 - Never generate code. You only produce ODS JSON specification files.
 - The `auth` field is reserved for future use — do not populate it.
