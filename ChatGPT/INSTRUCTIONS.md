@@ -69,7 +69,7 @@ For each page, walk through what components it needs:
 - **Form** — If the page collects data, ask about each field:
   - Field name (you generate the camelCase `name`)
   - Label (what the user sees)
-  - Type: `text`, `email`, `number`, `date`, `multiline`, `select`, or `checkbox`
+  - Type: `text`, `email`, `number`, `date`, `multiline`, `select`, `checkbox`, or `hidden`
     - Use `date` for any date field — the framework shows a native date picker
     - Use `multiline` for long-form text (journal entries, comments, descriptions, instructions)
     - Use `select` when the user should pick from a fixed list of options — requires an `"options"` array (e.g., `"options": ["High", "Medium", "Low"]`)
@@ -78,7 +78,7 @@ For each page, walk through what components it needs:
   - Optional placeholder text (example hint shown inside the empty field, e.g., `"placeholder": "you@example.com"`)
   - Optional default value (pre-fills the field, e.g., `"default": "To Do"` for a status field)
   - Optional formula for computed fields (see Formula Fields section below)
-- **List** — If the page displays data, ask which fields/columns to show. Lists can have optional `rowActions` for inline per-row operations (like "Mark Done" or "Start Reading")
+- **List** — If the page displays data, ask which fields/columns to show. Lists can have optional `rowActions` for inline per-row operations (like "Mark Done" or "Start Reading"). Consider adding a `defaultSort` to show the most relevant items first (see Default Sort Order section below)
 - **Summary** — KPI or metric cards (see Summary Component section below)
 - **Tabs** — Tabbed layout for grouping multiple views (see Tabs Component section below)
 - **Detail** — Read-only display of a single record's fields (see Detail Component section below)
@@ -151,7 +151,7 @@ Before delivering the spec, verify ALL of the following. Do not present the spec
 ### Component validation
 - `text`: requires `component: "text"` and `content` (string). Supports optional `"format": "markdown"` for rendered markdown.
 - `form`: requires `component: "form"`, `id` (unique string), and `fields` (non-empty array)
-- `list`: requires `component: "list"`, `dataSource` (must reference a key in `dataSources`), and `columns` (non-empty array)
+- `list`: requires `component: "list"`, `dataSource` (must reference a key in `dataSources`), and `columns` (non-empty array). Optional: `defaultSort` (object with `field` and `direction`)
 - `button`: requires `component: "button"`, `label`, and `onClick` (non-empty array of actions)
 - `summary`: requires `component: "summary"`, `label`, and `value` (string, supports aggregate syntax)
 - `tabs`: requires `component: "tabs"` and `tabs` (array of objects, each with `label` and `content` array)
@@ -160,9 +160,13 @@ Before delivering the spec, verify ALL of the following. Do not present the spec
 ### Row action validation
 - Each row action needs `label`, `action` (must be `"update"`), `dataSource` (must match a PUT dataSources key), `matchField` (field used to identify the row), and `values` (object mapping field names to new values)
 - Row actions are optional on list components — only add when the user needs inline per-row operations
+- Optional: `"hideWhen"` (object) to conditionally hide the button per row. Supports `"equals"` and `"notEquals"`:
+  - `"hideWhen": { "field": "status", "equals": "Done" }` — hides the button when status is "Done"
+  - `"hideWhen": { "field": "status", "notEquals": "To Do" }` — hides the button unless status is "To Do"
+  - Use `notEquals` when a button should only appear for ONE specific value. Use `equals` when a button should be hidden for one specific value.
 
 ### Field validation
-- Every field needs `name` (camelCase, no spaces), `label`, and `type` (one of: `text`, `email`, `number`, `date`, `multiline`, `select`, `checkbox`)
+- Every field needs `name` (camelCase, no spaces), `label`, and `type` (one of: `text`, `email`, `number`, `date`, `multiline`, `select`, `checkbox`, `hidden`)
 - When type is `select`: `"options"` (array of strings) is required
 - Optional: `"required": true` (boolean, defaults to false)
 - Optional: `"placeholder"` (string, hint text shown in empty fields)
@@ -224,6 +228,9 @@ Choose the right type for each field:
 | `multiline` | Long-form text (descriptions, journal entries, instructions, comments) | Multi-line text area |
 | `select` | Picking from a fixed list (status, priority, category, rating) | Dropdown menu |
 | `checkbox` | Yes/no or true/false values (completed, favorite, reviewed) | Toggle switch |
+| `hidden` | Internal data that shouldn't be visible to the user | Nothing (invisible) |
+
+**When to use `hidden`:** Use hidden fields to carry data through a form without showing any UI. Common uses: auto-setting a status on new records (e.g., `"type": "hidden", "default": "Pending"`), storing computed values at submit time via `computedFields`, or passing internal data through forms. Hidden fields have their default value set in form state but are completely invisible to the user. Do not use `required` on hidden fields.
 
 **When to use `required`:** Mark fields as required when the data would be meaningless without them. For example, an expense without an amount, or a book without a title. Don't make everything required — optional fields encourage users to fill in what they can without feeling blocked.
 
@@ -246,6 +253,30 @@ Choose the right type for each field:
 - A `values` object with the fields to set (e.g., `{ "done": "true" }`)
 
 **Prefer `rowActions` over `update` actions** when the change is a fixed value (like toggling done/undone) and doesn't require user input. Use `update` actions when the user needs to type or choose new values.
+
+## Default Sort Order
+
+Lists can have a `defaultSort` property that sets the initial sort order when the list first loads. Users can still change the sort by tapping sortable column headers.
+
+```json
+{
+  "component": "list",
+  "dataSource": "expenseReader",
+  "defaultSort": { "field": "date", "direction": "desc" },
+  "columns": [
+    { "header": "Date", "field": "date", "sortable": true },
+    { "header": "Amount", "field": "amount", "sortable": true },
+    { "header": "Category", "field": "category" }
+  ]
+}
+```
+
+- `field` (required): The column field name to sort by. Must match a `field` value in the list's `columns`.
+- `direction` (optional): `"asc"` (ascending, the default) or `"desc"` (descending).
+
+**Best practice:** Always set `defaultSort` with direction `"desc"` on date columns so the newest items appear first. This is the most natural order for logs, journals, expense lists, and any chronological data.
+
+**When to use defaultSort:** Use it on any list where the default insertion order is not the most useful view. Date-based lists should almost always sort newest-first. Priority or status lists may benefit from sorting by priority level.
 
 ## Formula Fields
 
