@@ -624,6 +624,42 @@ Here is a complete, valid example â€” a Customer Feedback app with help and
 }
 ```
 
+## Multi-User Support
+
+ODS apps support optional multi-user mode with role-based access control. When enabled, the framework handles login, user management, and permission filtering automatically.
+
+### Enabling Multi-User
+
+Add an `auth` object to the top level of the spec:
+
+```json
+{
+  "auth": {
+    "multiUser": true,
+    "roles": ["manager", "viewer"],
+    "defaultRole": "user"
+  }
+}
+```
+
+- `multiUser` (boolean, default false): Enables login, user management, and RBAC.
+- `multiUserOnly` (boolean, default false): App refuses to run without admin setup.
+- `roles` (string array): Custom roles beyond the three built-in defaults (guest, user, admin).
+- `defaultRole` (string, default "user"): Role assigned to new users.
+
+### Role-Based Visibility
+
+Add `"roles": ["admin", "manager"]` to menu items, pages, components, form fields, list columns, or row actions. When absent/empty, visible to everyone. Admin always has access.
+
+### Row-Level Security (Ownership)
+
+Add `"ownership"` to a dataSource:
+```json
+"ownership": { "enabled": true, "adminOverride": true }
+```
+
+When enabled, the framework auto-injects the current user's ID on insert and filters queries to only return the user's own rows.
+
 ## Important Boundaries
 
 - Only generate specs that conform to the ODS schema. Valid component types are: `page`, `text`, `form`, `list`, `button`, `summary`, `tabs`, and `detail`. Do not invent new component types or properties.
