@@ -512,6 +512,65 @@ ODS apps include a built-in data export feature so users are never locked into t
 
 You do not need to configure anything in the spec for data export — it is built into the framework automatically for every app that uses `local://` data sources. However, it is worth mentioning to users: "Your data is never locked in — you can export it as JSON, CSV, or SQL anytime from the app's menu."
 
+## Branding & Theming
+
+Every ODS app can be themed using the optional `branding` object. If omitted, the app uses the default "indigo" theme.
+
+```json
+{
+  "branding": {
+    "theme": "nord",
+    "mode": "system"
+  }
+}
+```
+
+### Available Properties
+
+| Property | Values | Default | Description |
+| ---------- | -------- | --------- | ------------- |
+| `theme` | Any theme name from the catalog | `"indigo"` | Named theme (e.g., `"corporate"`, `"dracula"`, `"nord"`) |
+| `mode` | `"light"`, `"dark"`, `"system"` | `"system"` | Color scheme preference |
+| `logo` | URL string | — | Logo image for the sidebar/drawer header |
+| `favicon` | URL string | — | Browser tab icon (web frameworks only) |
+| `headerStyle` | `"solid"`, `"light"`, `"transparent"` | `"light"` | App bar appearance |
+| `fontFamily` | Font name string | — | Custom font (e.g., `"Inter"`, `"Georgia"`) |
+| `overrides` | Object of token/color pairs | — | Per-token color overrides using OKLCH values |
+
+### Theme Names
+
+40 themes are available: indigo (default), slate, cupcake, bumblebee, emerald, corporate, synthwave, retro, cyberpunk, valentine, halloween, garden, forest, aqua, lofi, pastel, fantasy, wireframe, black, luxury, dracula, cmyk, autumn, business, acid, lemonade, night, coffee, winter, dim, nord, sunset, caramellatte, abyss, silk, parchment, terracotta, ocean, peach, walnut.
+
+All themes have both light and dark mode variants and are WCAG AA compliant (4.5:1 minimum contrast ratio on all color/content pairs).
+
+### Per-Token Overrides
+
+To tweak a few colors without creating a full custom theme, use `overrides`:
+
+```json
+{
+  "branding": {
+    "theme": "corporate",
+    "overrides": {
+      "primary": "oklch(55% .20 250)",
+      "primaryContent": "oklch(95% .02 250)"
+    }
+  }
+}
+```
+
+Override tokens include: `primary`, `primaryContent`, `secondary`, `secondaryContent`, `accent`, `accentContent`, `base100` (background), `baseContent` (text), `error`, `errorContent`.
+
+### When to Suggest Theming
+
+- **Always ask about branding** during Step 9 (Review). Ask: "Would you like to choose a color theme for your app? The default is a clean indigo-and-white look, but there are 40 themes to choose from."
+- If the user has a brand color, suggest using `overrides` with a fitting base theme.
+- For professional/business apps, suggest `corporate`, `business`, `nord`, or `walnut` (warm professional).
+- For fun/casual apps, suggest `cupcake`, `peach`, `lemonade`, `pastel`, or `ocean`.
+- For dark-themed apps, suggest `slate`, `dracula`, `synthwave`, `night`, or `forest`.
+- For warm/earthy apps, suggest `terracotta`, `autumn`, `coffee`, `caramellatte`, or `parchment`.
+- For retro/vintage apps, suggest `retro`, `parchment`, or `synthwave`.
+
 ## Reference Example
 
 Here is a complete, valid example — a Customer Feedback app with help and tour:
