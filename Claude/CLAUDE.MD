@@ -55,6 +55,7 @@ For each page, walk through what components it needs:
   - Optional default value (pre-fills the field, e.g., `”default”: “To Do”` for a status field)
   - Optional formula for computed fields (see Formula Fields section below)
 - **List** â€” If the page displays data, ask which fields/columns to show. Consider adding a `defaultSort` to show the most relevant items first (see Default Sort Order section below)
+- **Kanban** â€” If the data has a status workflow (e.g., To Do / In Progress / Done), a kanban board lets users drag cards between columns. Requires a select field for columns. (see Kanban Component section below)
 - **Summary** â€” KPI or metric cards (see Summary Component section below)
 - **Tabs** â€” Tabbed layout for grouping multiple views (see Tabs Component section below)
 - **Detail** â€” Read-only display of a single record's fields (see Detail Component section below)
@@ -395,6 +396,51 @@ The tabs component lets you group multiple views into a tabbed layout. Each tab 
 
 **When to use tabs:** Use tabs when a page has multiple related views that would be cluttered if shown all at once. For example, a task manager with "Active" and "Completed" tabs, or a dashboard with "Overview", "Details", and "History" tabs.
 
+## Kanban Component
+
+The kanban component displays data as a drag-and-drop board. A select field's options become the columns, and each row becomes a card. Drag cards between columns to update their status automatically.
+
+```json
+{
+  "component": "kanban",
+  "dataSource": "taskReader",
+  "statusField": "status",
+  "titleField": "title",
+  "cardFields": ["title", "assignee", "priority", "dueDate"],
+  "searchable": true,
+  "defaultSort": { "field": "dueDate", "direction": "asc" },
+  "rowActions": [
+    {
+      "label": "Delete",
+      "action": "delete",
+      "dataSource": "taskWriter",
+      "matchField": "title"
+    }
+  ]
+}
+```
+
+- `dataSource` (required): The GET dataSource to read rows from.
+- `statusField` (required): The name of a select-type field whose `options` array defines the board columns. Must match a field in the associated form with type `select`.
+- `titleField` (optional): Which field to display as the card title (larger, bold). Defaults to the first entry in `cardFields`.
+- `cardFields` (required): Array of field names to display on each card.
+- `rowActions` (optional): Action buttons on each card (same format as list row actions).
+- `defaultSort` (optional): Sort order for cards within each column.
+- `searchable` (optional): Show a search bar above the board (default: false).
+
+**How drag-and-drop works:** The framework automatically finds a PUT dataSource pointing to the same `local://` table as the GET dataSource. When a card is dragged to a new column, the framework updates the `statusField` value for that row. No extra configuration needed.
+
+**When to use kanban:** Use kanban when the data has a clear status workflow (To Do / In Progress / Done) and the user needs a visual overview of items across stages. Task management, project tracking, support tickets, hiring pipelines. Pair with a regular list on another page so users can also see data in table form.
+
+**When NOT to use kanban:** If the status field has more than 6-7 options, a kanban board gets too wide. If there's no natural status progression, a list or tabs component is better.
+
+### Kanban validation
+- `statusField` must match a `select`-type field name in the forms that write to the same dataSource
+- `cardFields` must not be empty
+- The GET dataSource must exist
+- A matching PUT dataSource should exist for drag-and-drop to work (warn if missing)
+- `rowActions` follow the same validation rules as list row actions
+
 ## Detail Component
 
 The detail component shows a read-only display of field/value pairs from a single record. Think of it as the "view" counterpart to a form â€" it displays data without letting the user edit it.
@@ -721,7 +767,7 @@ When enabled, the framework auto-injects the current user's ID on insert and fil
 
 ## Important Boundaries
 
-- Only generate specs that conform to the ODS schema. Valid component types are: `page`, `text`, `form`, `list`, `button`, `summary`, `tabs`, and `detail`. Do not invent new component types or properties.
+- Only generate specs that conform to the ODS schema. Valid component types are: `page`, `text`, `form`, `list`, `kanban`, `button`, `summary`, `tabs`, `chart`, and `detail`. Do not invent new component types or properties.
 - If the user asks for something beyond the spec's capabilities (e.g., image uploads, authentication, conditional logic), acknowledge it kindly and explain it's not yet supported. Suggest the simplest alternative that works within the spec.
 - Never generate code. You only produce ODS JSON specification files.
 - The `auth` field is reserved for future use â€” do not populate it.
