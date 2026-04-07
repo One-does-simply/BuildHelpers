@@ -69,7 +69,7 @@ For each page, walk through what components it needs:
 - **Form** — If the page collects data, ask about each field:
   - Field name (you generate the camelCase `name`)
   - Label (what the user sees)
-  - Type: `text`, `email`, `number`, `date`, `multiline`, `select`, `checkbox`, or `hidden`
+  - Type: `text`, `email`, `number`, `date`, `multiline`, `select`, `checkbox`, `hidden`, or `user`
     - Use `date` for any date field — the framework shows a native date picker
     - Use `multiline` for long-form text (journal entries, comments, descriptions, instructions)
     - Use `select` when the user should pick from a fixed list of options — requires an `"options"` array (e.g., `"options": ["High", "Medium", "Low"]`)
@@ -167,7 +167,7 @@ Before delivering the spec, verify ALL of the following. Do not present the spec
   - Use `notEquals` when a button should only appear for ONE specific value. Use `equals` when a button should be hidden for one specific value.
 
 ### Field validation
-- Every field needs `name` (camelCase, no spaces), `label`, and `type` (one of: `text`, `email`, `number`, `date`, `multiline`, `select`, `checkbox`, `hidden`)
+- Every field needs `name` (camelCase, no spaces), `label`, and `type` (one of: `text`, `email`, `number`, `date`, `multiline`, `select`, `checkbox`, `hidden`, `user`)
 - When type is `select`: `"options"` (array of strings) is required
 - Optional: `"required": true` (boolean, defaults to false)
 - Optional: `"placeholder"` (string, hint text shown in empty fields)
@@ -230,6 +230,7 @@ Choose the right type for each field:
 | `select` | Picking from a fixed list (status, priority, category, rating) | Dropdown menu |
 | `checkbox` | Yes/no or true/false values (completed, favorite, reviewed) | Toggle switch |
 | `hidden` | Internal data that shouldn't be visible to the user | Nothing (invisible) |
+| `user` | Assigning a person (assignee, reviewer, owner) | Dropdown of users (multi-user) or text field (single-user) |
 
 **When to use `hidden`:** Use hidden fields to carry data through a form without showing any UI. Common uses: auto-setting a status on new records (e.g., `"type": "hidden", "default": "Pending"`), storing computed values at submit time via `computedFields`, or passing internal data through forms. Hidden fields have their default value set in form state but are completely invisible to the user. Do not use `required` on hidden fields.
 
@@ -240,6 +241,8 @@ Choose the right type for each field:
 **When to use `select`:** Use select whenever the user is choosing from a known set of options. Categories, statuses, priorities, ratings, moods — if you can list all the valid values, use select instead of text. This prevents typos, ensures consistency, and makes the app easier to use. Always provide the `"options"` array: `"options": ["To Do", "In Progress", "Done"]`. You can combine select with `"default"` to pre-select the most common option.
 
 **When to use `checkbox`:** Use checkbox for any field that is a simple yes/no, true/false, or on/off. For example: "Completed", "Favorite", "Reviewed", "Reimbursable". The framework stores the value as `"true"` or `"false"`. Do not use `required` on checkbox fields — they always have a value. You can set `"default": "true"` if the checkbox should start checked.
+
+**When to use `user`:** Use user for any field that assigns a person from the app's user list — assignees, reviewers, owners, reporters. In multi-user mode, the framework renders a dropdown populated from the app's user list. In single-user mode, it renders as a plain text field. This is the right choice for fields like "Assigned To", "Reviewer", "Created By". Do NOT use user for external people (like customer names in a feedback form) — use text for those.
 
 **When to use `default`:** Use default values to pre-fill fields where there's an obvious starting value. For example, a status field that defaults to `"To Do"` or a priority field that defaults to `"Medium"`. This reduces friction for the user — they only change it if they need something different.
 
